@@ -180,7 +180,10 @@
   }
   const SOUND = {
     open: () => tone([700, 1050], 0.08),
-    flag: () => tone([320, 230], 0.18, 'sine', 0.09),
+    flag: () => {
+      tone([784, 1047], 0.13, 'triangle', 0.24);
+      tone([1175, 1568], 0.17, 'sine', 0.2, 0.075);
+    },
     unflag: () => tone([350, 480], 0.08, 'sine', 0.08),
     meow: () => tone([480, 820, 520], 0.55, 'triangle', 0.25), // にゃー
     win: () => [784, 988, 1175, 1568].forEach((f, i) => tone([f, f * 1.01], 0.2, 'sine', 0.18, i * 0.1)),
@@ -262,7 +265,10 @@
       if (!b) return;
       const was = b.cells[r][c].flag;
       toggleFlag(b, r, c);
-      if (b.cells[r][c].flag !== was) (was ? SOUND.unflag : SOUND.flag)();
+      if (b.cells[r][c].flag !== was) {
+        if (was) SOUND.unflag();
+        else { SOUND.flag(); navigator.vibrate?.(50); }
+      }
       return render(!was && b.cells[r][c].flag ? [r, c] : null);
     }
     if (!b) {
@@ -293,7 +299,7 @@
     touch = e.pointerType === 'touch'; longPressed = false;
     const t = target(e);
     if (touch && t) timer = setTimeout(() => {
-      longPressed = true; navigator.vibrate?.(30); act(+t.dataset.r, +t.dataset.c, true);
+      longPressed = true; act(+t.dataset.r, +t.dataset.c, true);
     }, 400);
   });
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) $('board').addEventListener(ev, () => clearTimeout(timer));
