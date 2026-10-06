@@ -25,10 +25,15 @@
   .cell.open { background: var(--open); box-shadow: none; cursor: default; }
   .n1 { color: #5fa8d3; } .n2 { color: #6cbf84; } .n3 { color: #e8798f; } .n4 { color: #9b7fd1; }
   .n5 { color: #d9935b; } .n6 { color: #4bb3a8; } .n7 { color: #555; } .n8 { color: #999; }
-  #help { margin-bottom: 12px; max-width: 360px; }
-  #help summary { display: block; width: fit-content; margin: 0 auto; border: 2px solid var(--tile); background: #fff; border-radius: 999px; padding: 4px 14px; cursor: pointer; list-style: none; }
-  #help summary::-webkit-details-marker { display: none; }
+  details { margin-bottom: 12px; max-width: 360px; }
+  details summary { display: block; width: fit-content; margin: 0 auto; border: 2px solid var(--tile); background: #fff; border-radius: 999px; padding: 4px 14px; cursor: pointer; list-style: none; }
+  details summary::-webkit-details-marker { display: none; }
   #help ul { background: #fff; border-radius: 12px; padding: 10px 10px 10px 28px; margin: 8px 0 0; line-height: 1.7; }
+  .dex-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #fff; border-radius: 12px; padding: 10px; margin-top: 8px; }
+  .dex-grid div { display: flex; flex-direction: column; align-items: center; font-size: .8rem; }
+  .dex-grid svg { width: 56px; height: 56px; }
+  .dex-grid .unknown svg { filter: brightness(0) opacity(.15); }
+  .dex-grid small { color: #b08a99; }
   #msg { min-height: 1.5em; margin-top: 12px; }
 </style>
 </head>
@@ -55,9 +60,14 @@
     <li>右クリック（スマホは長押し）で<span class="ico" data-icon="paw"></span>の目印。もう一回で外れる</li>
     <li>猫のいないマスを全部めくったらクリア<span class="ico" data-icon="love"></span></li>
     <li><span class="ico" data-icon="normal"></span>を押すと最初からやり直し</li>
+    <li>クリアすると盤面の猫がみんな図鑑に登録される。負けても、目印で当てた猫は登録されるよ</li>
     <li>「おと」ボタンで効果音のON/OFF</li>
     <li><span class="ico" data-icon="clock"></span>は経過時間、<span class="ico" data-icon="crown"></span>は難易度ごとのベストタイム</li>
   </ul>
+</details>
+<details id="dex">
+  <summary>ねこ図鑑 <span id="dex-count"></span></summary>
+  <div class="dex-grid" id="dex-grid"></div>
 </details>
 <div id="board"></div>
 <div id="msg"></div>
@@ -68,23 +78,48 @@
   // イラストはすべてインラインSVG。差し替えるときはここの文字列を <img src="..."> に変えればOK
   const INK = '#6b4a57';
   const heart = (x, y) => `<path d="M${x} ${y + 6}C${x - 11} ${y - 2} ${x - 5} ${y - 10} ${x} ${y - 3}C${x + 5} ${y - 10} ${x + 11} ${y - 2} ${x} ${y + 6}Z" fill="#ff5c8a"/>`;
-  const cat = (face, fur = '#f7c27a') => `<svg viewBox="0 0 100 100" aria-hidden="true">
-    <path d="M14 46L20 8L46 28ZM86 46L80 8L54 28Z" fill="${fur}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+  // 猫の種類ごとの見た目。marks は顔の輪郭で切り抜かれる模様
+  const DARK = '#4d434a';
+  const stripes = (c) => `<path d="M41 31v9M50 29v11M59 31v9M8 60h12M9 69h10M80 60h12M81 69h10" stroke="${c}" stroke-width="5" stroke-linecap="round"/>`;
+  const LOOKS = {
+    chatora: { fur: '#f7c27a', marks: stripes('#e0964a') },
+    saba: { fur: '#d4d4da', marks: stripes('#8e8e9a') },
+    kuro: { fur: DARK, ink: '#ffe08a' },
+    shiro: { fur: '#fffaf3' },
+    hachiware: { fur: '#fffaf3', ears: [DARK, DARK], marks: `<path d="M0 0H100V50H58L50 38L42 50H0Z" fill="${DARK}"/>` },
+    mike: { fur: '#fffaf3', ears: ['#f5a35c', DARK], marks: `<ellipse cx="26" cy="38" rx="22" ry="15" fill="#f5a35c"/><ellipse cx="78" cy="34" rx="20" ry="13" fill="${DARK}"/>` },
+    siam: { fur: '#f6e8d2', ears: ['#7a5c4c', '#7a5c4c'], marks: `<ellipse cx="50" cy="68" rx="19" ry="13" fill="#d8b896"/>` },
+    maneki: { fur: '#ffd36e', marks: `<path d="M0 90Q50 104 100 90" stroke="#e8364f" stroke-width="10" fill="none"/><path d="M22 30l3 6 6 1-5 4 1 6-5-3-5 3 1-6-5-4 6-1z" fill="#fff6c8"/>` },
+  };
+  const cat = (face, { fur, ears = [fur, fur], marks = '', ink = INK } = LOOKS.chatora) => `<svg viewBox="0 0 100 100" aria-hidden="true">
+    <path d="M14 46L20 8L46 28Z" fill="${ears[0]}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M86 46L80 8L54 28Z" fill="${ears[1]}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
     <path d="M23 32L25 18L37 27ZM77 32L75 18L63 27Z" fill="#ffb3c6"/>
-    <ellipse cx="50" cy="60" rx="41" ry="34" fill="${fur}" stroke="${INK}" stroke-width="4"/>
+    <clipPath id="head"><ellipse cx="50" cy="60" rx="41" ry="34"/></clipPath>
+    <ellipse cx="50" cy="60" rx="41" ry="34" fill="${fur}"/>
+    <g clip-path="url(#head)">${marks}</g>
+    <ellipse cx="50" cy="60" rx="41" ry="34" fill="none" stroke="${INK}" stroke-width="4"/>
     <ellipse cx="24" cy="70" rx="7" ry="4.5" fill="#ff8fab" opacity=".6"/>
     <ellipse cx="76" cy="70" rx="7" ry="4.5" fill="#ff8fab" opacity=".6"/>
     <path d="M46 62h8l-4 4z" fill="#ff6f91"/>
-    <g fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${face}</g>
+    <g color="${ink}" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${face}</g>
   </svg>`;
   const OMEGA = '<path d="M40 70q5 6 10 0q5 6 10 0"/>';
+  const EYES = '<circle cx="34" cy="55" r="3" stroke-width="7" fill="currentColor"/><circle cx="66" cy="55" r="3" stroke-width="7" fill="currentColor"/>';
+  const FACE = {
+    normal: EYES + OMEGA,
+    sleep: `<path d="M27 55q7 7 14 0M59 55q7 7 14 0"/>${OMEGA}`,
+    happy: `<path d="M27 58q7-8 14 0M59 58q7-8 14 0"/>${OMEGA}`,
+    angry: `<path d="M24 44l17 7M76 44l-17 7"/><circle cx="34" cy="58" r="2" stroke-width="6" fill="currentColor"/><circle cx="66" cy="58" r="2" stroke-width="6" fill="currentColor"/><path d="M40 76q10-12 20 0z" fill="#ff6f91"/>`,
+    sad: `${EYES}<path d="M42 74q8-7 16 0"/><path d="M70 62q-5 8 0 10q5-2 0-10z" fill="#7cc4f0" stroke="none"/>`,
+    love: `${heart(34, 55)}${heart(66, 55)}${OMEGA}`.replace(/fill="#ff5c8a"/g, 'fill="#ff5c8a" stroke="none"'),
+  };
+  const breedIcon = (face, id) => cat(FACE[face], LOOKS[id]);
   const ICON = {
-    normal: cat(`<circle cx="34" cy="55" r="3" stroke-width="7" fill="${INK}"/><circle cx="66" cy="55" r="3" stroke-width="7" fill="${INK}"/>${OMEGA}`),
-    sleep: cat(`<path d="M27 55q7 7 14 0M59 55q7 7 14 0"/>${OMEGA}`, '#c9b8e8'),
-    happy: cat(`<path d="M27 58q7-8 14 0M59 58q7-8 14 0"/>${OMEGA}`),
-    angry: cat(`<path d="M24 44l17 7M76 44l-17 7"/><circle cx="34" cy="58" r="2" stroke-width="6" fill="${INK}"/><circle cx="66" cy="58" r="2" stroke-width="6" fill="${INK}"/><path d="M40 76q10-12 20 0z" fill="#ff6f91"/>`, '#f59a6b'),
-    sad: cat(`<circle cx="34" cy="55" r="3" stroke-width="7" fill="${INK}"/><circle cx="66" cy="55" r="3" stroke-width="7" fill="${INK}"/><path d="M42 74q8-7 16 0"/><path d="M70 62q-5 8 0 10q5-2 0-10z" fill="#7cc4f0" stroke="none"/>`),
-    love: cat(`${heart(34, 55)}${heart(66, 55)}${OMEGA}`.replace(/fill="#ff5c8a"/g, 'fill="#ff5c8a" stroke="none"')),
+    normal: cat(FACE.normal),
+    sleep: cat(FACE.sleep, { fur: '#c9b8e8' }),
+    sad: cat(FACE.sad),
+    love: cat(FACE.love),
     paw: `<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="#e8798f"><ellipse cx="50" cy="66" rx="21" ry="18"/><ellipse cx="25" cy="44" rx="9" ry="11"/><ellipse cx="41" cy="27" rx="9" ry="11"/><ellipse cx="59" cy="27" rx="9" ry="11"/><ellipse cx="75" cy="44" rx="9" ry="11"/></g></svg>`,
     clock: `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="54" r="36" fill="#fff" stroke="${INK}" stroke-width="7"/><path d="M50 32v22l14 9" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/><path d="M40 10h20" stroke="${INK}" stroke-width="7" stroke-linecap="round"/></svg>`,
     crown: `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 76L8 30l24 18L50 20l18 28 24-18-6 46z" fill="#ffd36e" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><circle cx="50" cy="60" r="6" fill="#ff8fab"/></svg>`,
@@ -135,6 +170,29 @@
   };
   showSound();
 
+  // 図鑑は { 種類id: 会った回数 } を端末ごとに保存
+  const loadDex = () => { try { return JSON.parse(localStorage.getItem('nekomine-dex')) || {}; } catch { return {}; } };
+  const saveDex = (d) => { try { localStorage.setItem('nekomine-dex', JSON.stringify(d)); } catch {} };
+  const breedName = (id) => BREEDS.find((x) => x.id === id).name;
+  const stars = (w) => '★'.repeat(w >= 15 ? 1 : w >= 6 ? 2 : w >= 3 ? 3 : 4);
+  function showDex() {
+    const dex = loadDex();
+    $('dex-count').textContent = `${BREEDS.filter((x) => dex[x.id]).length}/${BREEDS.length}`;
+    $('dex-grid').innerHTML = BREEDS.map((x) => dex[x.id]
+      ? `<div>${breedIcon('happy', x.id)}<b>${x.name}</b><small>${stars(x.weight)} ×${dex[x.id]}</small></div>`
+      : `<div class="unknown">${breedIcon('sleep', x.id)}<b>？？？</b><small>${stars(x.weight)}</small></div>`).join('');
+  }
+  showDex();
+
+  // ゲーム終了時に図鑑へ登録して、メッセージに添える一文を返す
+  function catchCats(won) {
+    const caught = caughtCats(b, won);
+    if (!caught.length) return '';
+    const { dex, fresh } = addToDex(loadDex(), caught);
+    saveDex(dex); showDex();
+    return `<br>図鑑に${caught.length}匹登録` + (fresh.length ? `！はじめて会った猫：${fresh.map(breedName).join('、')}` : '');
+  }
+
   function start() {
     [rows, cols, cats] = $('level').value.split(',').map(Number);
     b = null; over = false; clearInterval(tick);
@@ -154,10 +212,10 @@
       el.dataset.r = r; el.dataset.c = c;
       if (x?.open) {
         el.classList.add('open');
-        if (x.cat) { el.classList.add('boom'); el.innerHTML = ICON.angry; }
+        if (x.cat) { el.classList.add('boom'); el.innerHTML = breedIcon('angry', x.breed); }
         else if (x.n) { el.textContent = x.n; el.classList.add('n' + x.n); }
       } else if (over && x?.cat) {
-        el.innerHTML = x.flag ? ICON.happy : ICON.sleep;
+        el.innerHTML = breedIcon(x.flag ? 'happy' : 'sleep', x.breed);
       } else if (x?.flag) {
         el.innerHTML = ICON.paw;
       }
@@ -181,14 +239,14 @@
     const wasOpen = b.cells[r][c].open;
     if (reveal(b, r, c) === 'boom') {
       over = true; clearInterval(tick); SOUND.meow();
-      setFace('sad'); $('msg').textContent = '猫が起きちゃった…！もう一回？';
+      setFace('sad'); $('msg').innerHTML = '猫が起きちゃった…！もう一回？' + catchCats(false);
     } else if (isWon(b)) {
       over = true; clearInterval(tick); SOUND.win();
       const s = elapsed(), best = loadBest();
       showTime(s);
       if (!best || s < best) { saveBest(s); showBest(); }
       setFace('love');
-      $('msg').innerHTML = `みんなぐっすり！${s.toFixed(1)}秒でクリア` + (!best || s < best ? ` 新記録${ico('crown')}` : '');
+      $('msg').innerHTML = `みんなぐっすり！${s.toFixed(1)}秒でクリア` + (!best || s < best ? ` 新記録${ico('crown')}` : '') + catchCats(true);
     } else if (!wasOpen && b.cells[r][c].open) {
       SOUND.open();
     }
