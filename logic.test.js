@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { createBoard, reveal, toggleFlag, isWon } = require('./logic.js');
+const { createBoard, reveal, toggleFlag, isWon, BREEDS, pickBreed, caughtCats, addToDex } = require('./logic.js');
 
 const count = (b, f) => b.cells.flat().filter(f).length;
 
@@ -63,4 +63,35 @@ test('開いたマスには旗を立てられない', () => {
   reveal(b, 1, 1);
   toggleFlag(b, 1, 1);
   assert.ok(!b.cells[1][1].flag);
+});
+
+test('pickBreed は重みどおりに選ぶ（端の値）', () => {
+  assert.strictEqual(pickBreed(0), BREEDS[0].id);
+  assert.strictEqual(pickBreed(0.999999), BREEDS[BREEDS.length - 1].id);
+  const total = BREEDS.reduce((s, x) => s + x.weight, 0);
+  assert.strictEqual(pickBreed(BREEDS[0].weight / total), BREEDS[1].id); // 境界ちょうどは次の種類
+});
+
+test('盤面の猫にはすべて種類が付く', () => {
+  const ids = BREEDS.map((x) => x.id);
+  const b = createBoard(16, 16, 40, 0, 0);
+  for (const c of b.cells.flat().filter((c) => c.cat)) assert.ok(ids.includes(c.breed));
+});
+
+test('クリアなら全部の猫、負けなら正しく目印した猫だけ捕まえる', () => {
+  const b = fromMap(['*.*', '...']);
+  b.cells[0][0].breed = 'mike';
+  b.cells[0][2].breed = 'kuro';
+  assert.deepStrictEqual(caughtCats(b, true).sort(), ['kuro', 'mike']);
+  toggleFlag(b, 0, 2);
+  toggleFlag(b, 1, 1); // 猫じゃないマスの目印は数えない
+  assert.deepStrictEqual(caughtCats(b, false), ['kuro']);
+});
+
+test('addToDex は数を足し、初めての種類を返す（元の図鑑は変えない）', () => {
+  const dex = { kuro: 2 };
+  const { dex: next, fresh } = addToDex(dex, ['kuro', 'mike', 'mike']);
+  assert.deepStrictEqual(next, { kuro: 3, mike: 2 });
+  assert.deepStrictEqual(fresh, ['mike']);
+  assert.deepStrictEqual(dex, { kuro: 2 });
 });
