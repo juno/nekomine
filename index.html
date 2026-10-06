@@ -44,6 +44,8 @@
   .dex-grid svg { width: 56px; height: 56px; }
   .dex-grid .unknown svg { filter: brightness(0) opacity(.15); }
   .dex-grid small { color: #b08a99; }
+  .dex-grid .rarity { color: #c46b8b; font-size: .8rem; white-space: nowrap; }
+  .dex-grid .registered { color: var(--ink); white-space: nowrap; }
   #msg { min-height: 1.5em; margin-top: 12px; }
 </style>
 </head>
@@ -193,13 +195,16 @@
   const loadDex = () => { try { return JSON.parse(localStorage.getItem('nekomine-dex')) || {}; } catch { return {}; } };
   const saveDex = (d) => { try { localStorage.setItem('nekomine-dex', JSON.stringify(d)); } catch {} };
   const breedName = (id) => BREEDS.find((x) => x.id === id).name;
-  const stars = (w) => '★'.repeat(w >= 15 ? 1 : w >= 6 ? 2 : w >= 3 ? 3 : 4);
+  const rarity = (w) => {
+    const n = w >= 15 ? 1 : w >= 6 ? 2 : w >= 3 ? 3 : 4;
+    return `<small>レア度</small><span class="rarity" role="img" aria-label="レア度${n}つ星">${'★'.repeat(n)}${'☆'.repeat(4 - n)}</span>`;
+  };
   function showDex() {
     const dex = loadDex();
     $('dex-count').textContent = `${BREEDS.filter((x) => dex[x.id]).length}/${BREEDS.length}`;
     $('dex-grid').innerHTML = BREEDS.map((x) => dex[x.id]
-      ? `<div>${breedIcon('happy', x.id)}<b>${x.name}</b><small>${stars(x.weight)} ×${dex[x.id]}</small></div>`
-      : `<div class="unknown">${breedIcon('sleep', x.id)}<b>？？？</b><small>${stars(x.weight)}</small></div>`).join('');
+      ? `<div>${breedIcon('happy', x.id)}<b>${x.name}</b>${rarity(x.weight)}<small class="registered">登録 ${dex[x.id]}匹</small></div>`
+      : `<div class="unknown">${breedIcon('sleep', x.id)}<b>？？？</b>${rarity(x.weight)}</div>`).join('');
   }
   showDex();
 
