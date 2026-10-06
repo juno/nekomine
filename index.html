@@ -12,7 +12,11 @@
   h1 { margin: 8px 0; font-size: 1.6rem; }
   .bar { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; justify-content: center; }
   button, select { font: inherit; color: inherit; border: 2px solid var(--tile); background: #fff; border-radius: 999px; padding: 4px 14px; cursor: pointer; }
-  #face { font-size: 1.8rem; padding: 0 10px; }
+  #face { padding: 2px 8px; }
+  #face svg { width: 2.4rem; height: 2.4rem; }
+  .ico svg { width: 1.3em; height: 1.3em; vertical-align: -0.3em; }
+  .cell svg { width: 85%; height: 85%; display: block; margin: auto; }
+  .cell.boom { background: #ffb3b3; }
   #board { display: grid; gap: 3px; background: #ffc2d1; padding: 8px; border-radius: 16px; touch-action: manipulation; }
   .cell { width: min(9vw, 34px); aspect-ratio: 1; border: 0; border-radius: 8px; padding: 0;
           background: var(--tile); box-shadow: inset 0 -3px #f4a6b8; font-size: min(5vw, 20px); font-weight: bold;
@@ -29,7 +33,7 @@
 </style>
 </head>
 <body>
-<h1>🐾 ねこマインスイーパー 🐾</h1>
+<h1><span class="ico" data-icon="paw"></span> ねこマインスイーパー <span class="ico" data-icon="paw"></span></h1>
 <p>寝ている猫を起こさないように、全部のクッションをめくってね</p>
 <div class="bar">
   <select id="level">
@@ -38,16 +42,21 @@
     <option value="16,30,99">ボス猫</option>
   </select>
   <span id="left"></span>
-  <button id="face" aria-label="リスタート">😺</button>
+  <span id="time"></span>
+  <span id="best"></span>
+  <button id="face" aria-label="リスタート"></button>
+  <button id="sound" aria-pressed="true">おと ON</button>
 </div>
 <details id="help">
-  <summary>❓ 遊び方</summary>
+  <summary>遊び方</summary>
   <ul>
     <li>クリック（タップ）でクッションをめくる</li>
-    <li>数字は、まわり8マスで寝ている猫😴の数</li>
-    <li>右クリック（スマホは長押し）で🐾の目印。もう一回で外れる</li>
-    <li>猫のいないマスを全部めくったらクリア😻</li>
-    <li>😺を押すと最初からやり直し</li>
+    <li>数字は、まわり8マスで寝ている猫<span class="ico" data-icon="sleep"></span>の数</li>
+    <li>右クリック（スマホは長押し）で<span class="ico" data-icon="paw"></span>の目印。もう一回で外れる</li>
+    <li>猫のいないマスを全部めくったらクリア<span class="ico" data-icon="love"></span></li>
+    <li><span class="ico" data-icon="normal"></span>を押すと最初からやり直し</li>
+    <li>「おと」ボタンで効果音のON/OFF</li>
+    <li><span class="ico" data-icon="clock"></span>は経過時間、<span class="ico" data-icon="crown"></span>は難易度ごとのベストタイム</li>
   </ul>
 </details>
 <div id="board"></div>
@@ -55,19 +64,89 @@
 <script src="logic.js"></script>
 <script>
   const $ = (id) => document.getElementById(id);
-  let b, rows, cols, cats, over;
+
+  // イラストはすべてインラインSVG。差し替えるときはここの文字列を <img src="..."> に変えればOK
+  const INK = '#6b4a57';
+  const heart = (x, y) => `<path d="M${x} ${y + 6}C${x - 11} ${y - 2} ${x - 5} ${y - 10} ${x} ${y - 3}C${x + 5} ${y - 10} ${x + 11} ${y - 2} ${x} ${y + 6}Z" fill="#ff5c8a"/>`;
+  const cat = (face, fur = '#f7c27a') => `<svg viewBox="0 0 100 100" aria-hidden="true">
+    <path d="M14 46L20 8L46 28ZM86 46L80 8L54 28Z" fill="${fur}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M23 32L25 18L37 27ZM77 32L75 18L63 27Z" fill="#ffb3c6"/>
+    <ellipse cx="50" cy="60" rx="41" ry="34" fill="${fur}" stroke="${INK}" stroke-width="4"/>
+    <ellipse cx="24" cy="70" rx="7" ry="4.5" fill="#ff8fab" opacity=".6"/>
+    <ellipse cx="76" cy="70" rx="7" ry="4.5" fill="#ff8fab" opacity=".6"/>
+    <path d="M46 62h8l-4 4z" fill="#ff6f91"/>
+    <g fill="none" stroke="${INK}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">${face}</g>
+  </svg>`;
+  const OMEGA = '<path d="M40 70q5 6 10 0q5 6 10 0"/>';
+  const ICON = {
+    normal: cat(`<circle cx="34" cy="55" r="3" stroke-width="7" fill="${INK}"/><circle cx="66" cy="55" r="3" stroke-width="7" fill="${INK}"/>${OMEGA}`),
+    sleep: cat(`<path d="M27 55q7 7 14 0M59 55q7 7 14 0"/>${OMEGA}`, '#c9b8e8'),
+    happy: cat(`<path d="M27 58q7-8 14 0M59 58q7-8 14 0"/>${OMEGA}`),
+    angry: cat(`<path d="M24 44l17 7M76 44l-17 7"/><circle cx="34" cy="58" r="2" stroke-width="6" fill="${INK}"/><circle cx="66" cy="58" r="2" stroke-width="6" fill="${INK}"/><path d="M40 76q10-12 20 0z" fill="#ff6f91"/>`, '#f59a6b'),
+    sad: cat(`<circle cx="34" cy="55" r="3" stroke-width="7" fill="${INK}"/><circle cx="66" cy="55" r="3" stroke-width="7" fill="${INK}"/><path d="M42 74q8-7 16 0"/><path d="M70 62q-5 8 0 10q5-2 0-10z" fill="#7cc4f0" stroke="none"/>`),
+    love: cat(`${heart(34, 55)}${heart(66, 55)}${OMEGA}`.replace(/fill="#ff5c8a"/g, 'fill="#ff5c8a" stroke="none"')),
+    paw: `<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="#e8798f"><ellipse cx="50" cy="66" rx="21" ry="18"/><ellipse cx="25" cy="44" rx="9" ry="11"/><ellipse cx="41" cy="27" rx="9" ry="11"/><ellipse cx="59" cy="27" rx="9" ry="11"/><ellipse cx="75" cy="44" rx="9" ry="11"/></g></svg>`,
+    clock: `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="54" r="36" fill="#fff" stroke="${INK}" stroke-width="7"/><path d="M50 32v22l14 9" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/><path d="M40 10h20" stroke="${INK}" stroke-width="7" stroke-linecap="round"/></svg>`,
+    crown: `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 76L8 30l24 18L50 20l18 28 24-18-6 46z" fill="#ffd36e" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><circle cx="50" cy="60" r="6" fill="#ff8fab"/></svg>`,
+  };
+  document.querySelectorAll('[data-icon]').forEach((el) => (el.innerHTML = ICON[el.dataset.icon]));
+  const setFace = (name) => ($('face').innerHTML = ICON[name]);
+  const ico = (name) => `<span class="ico">${ICON[name]}</span>`;
+  let b, rows, cols, cats, over, t0, tick;
+  const elapsed = () => (Date.now() - t0) / 1000;
+  const showTime = (s) => ($('time').innerHTML = `${ico('clock')} ${s.toFixed(1)}`);
+  // ベストは端末ごと。localStorage が使えない環境では記録なしで遊べる
+  const bestKey = () => 'nekomine-best-' + $('level').value;
+  const loadBest = () => { try { return parseFloat(localStorage.getItem(bestKey())) || null; } catch { return null; } };
+  const saveBest = (s) => { try { localStorage.setItem(bestKey(), s); } catch {} };
+  const showBest = () => { const v = loadBest(); $('best').innerHTML = `${ico('crown')} ${v ? v.toFixed(1) : '--'}`; };
+
+  // 効果音は Web Audio で合成。AudioContext はブラウザの制約で最初の操作時に作る
+  let ac, muted = false;
+  try { muted = localStorage.getItem('nekomine-muted') === '1'; } catch {}
+  function tone(freqs, dur, type = 'sine', vol = 0.2, at = 0) {
+    if (muted) return;
+    ac ??= new AudioContext();
+    const t = ac.currentTime + at, o = ac.createOscillator(), g = ac.createGain();
+    o.type = type;
+    o.frequency.setValueAtTime(freqs[0], t);
+    freqs.slice(1).forEach((f, i) => o.frequency.exponentialRampToValueAtTime(f, t + (dur * (i + 1)) / freqs.length));
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(vol, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    o.connect(g).connect(ac.destination);
+    o.start(t); o.stop(t + dur);
+  }
+  const SOUND = {
+    open: () => tone([700, 1050], 0.08),
+    flag: () => tone([1200, 1700], 0.07, 'triangle'),
+    unflag: () => tone([1700, 1100], 0.07, 'triangle'),
+    meow: () => tone([480, 820, 520], 0.55, 'triangle', 0.25), // にゃー
+    win: () => [784, 988, 1175, 1568].forEach((f, i) => tone([f, f * 1.01], 0.2, 'sine', 0.18, i * 0.1)),
+  };
+  const showSound = () => {
+    $('sound').textContent = muted ? 'おと OFF' : 'おと ON';
+    $('sound').setAttribute('aria-pressed', !muted);
+  };
+  $('sound').onclick = () => {
+    muted = !muted; showSound();
+    try { localStorage.setItem('nekomine-muted', muted ? '1' : '0'); } catch {}
+    SOUND.flag();
+  };
+  showSound();
 
   function start() {
     [rows, cols, cats] = $('level').value.split(',').map(Number);
-    b = null; over = false;
-    $('face').textContent = '😺'; $('msg').textContent = '';
+    b = null; over = false; clearInterval(tick);
+    showTime(0); showBest();
+    setFace('normal'); $('msg').textContent = '';
     $('board').style.gridTemplateColumns = `repeat(${cols}, auto)`;
     render();
   }
 
   function render() {
     const flags = b ? b.cells.flat().filter((c) => c.flag).length : 0;
-    $('left').textContent = `😴 × ${cats - flags}`;
+    $('left').innerHTML = `${ico('sleep')} × ${cats - flags}`;
     $('board').replaceChildren(...Array.from({ length: rows * cols }, (_, i) => {
       const r = Math.floor(i / cols), c = i % cols, x = b?.cells[r][c];
       const el = document.createElement('button');
@@ -75,12 +154,12 @@
       el.dataset.r = r; el.dataset.c = c;
       if (x?.open) {
         el.classList.add('open');
-        el.textContent = x.cat ? '😾' : x.n || '';
-        if (x.n && !x.cat) el.classList.add('n' + x.n);
+        if (x.cat) { el.classList.add('boom'); el.innerHTML = ICON.angry; }
+        else if (x.n) { el.textContent = x.n; el.classList.add('n' + x.n); }
       } else if (over && x?.cat) {
-        el.textContent = x.flag ? '😽' : '😴';
+        el.innerHTML = x.flag ? ICON.happy : ICON.sleep;
       } else if (x?.flag) {
-        el.textContent = '🐾';
+        el.innerHTML = ICON.paw;
       }
       return el;
     }));
@@ -88,12 +167,30 @@
 
   function act(r, c, flag) {
     if (over) return;
-    if (flag) { if (b) toggleFlag(b, r, c); return render(); }
-    b ??= createBoard(rows, cols, cats, r, c);
+    if (flag) {
+      if (!b) return;
+      const was = b.cells[r][c].flag;
+      toggleFlag(b, r, c);
+      if (b.cells[r][c].flag !== was) (was ? SOUND.unflag : SOUND.flag)();
+      return render();
+    }
+    if (!b) {
+      b = createBoard(rows, cols, cats, r, c);
+      t0 = Date.now(); tick = setInterval(() => showTime(elapsed()), 100);
+    }
+    const wasOpen = b.cells[r][c].open;
     if (reveal(b, r, c) === 'boom') {
-      over = true; $('face').textContent = '😿'; $('msg').textContent = '猫が起きちゃった…！もう一回？';
+      over = true; clearInterval(tick); SOUND.meow();
+      setFace('sad'); $('msg').textContent = '猫が起きちゃった…！もう一回？';
     } else if (isWon(b)) {
-      over = true; $('face').textContent = '😻'; $('msg').textContent = 'みんなぐっすり！クリア🎉';
+      over = true; clearInterval(tick); SOUND.win();
+      const s = elapsed(), best = loadBest();
+      showTime(s);
+      if (!best || s < best) { saveBest(s); showBest(); }
+      setFace('love');
+      $('msg').innerHTML = `みんなぐっすり！${s.toFixed(1)}秒でクリア` + (!best || s < best ? ` 新記録${ico('crown')}` : '');
+    } else if (!wasOpen && b.cells[r][c].open) {
+      SOUND.open();
     }
     render();
   }
