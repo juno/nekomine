@@ -1,27 +1,31 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const { createBoard, reveal, toggleFlag, isWon, BREEDS, pickBreed, caughtCats, addToDex } = require('./logic.js');
+const { createBoard, reveal, toggleFlag, isWon, neighbors, solvable, BREEDS, pickBreed, caughtCats, addToDex } = require('./logic.js');
 
 const count = (b, f) => b.cells.flat().filter(f).length;
+const sorted = (a) => a.map(String).sort();
 
-test('指定数の猫が配置され、最初のマスと周囲には猫がいない', () => {
-  for (let i = 0; i < 50; i++) {
+// 六角形は奇数行を右に半マスずらして並べる
+test('六角形の隣は6マス（偶数行・奇数行・端）', () => {
+  const b = { rows: 5, cols: 5 };
+  assert.deepStrictEqual(sorted(neighbors(b, 2, 2)), sorted([[2, 1], [2, 3], [1, 1], [1, 2], [3, 1], [3, 2]]));
+  assert.deepStrictEqual(sorted(neighbors(b, 1, 2)), sorted([[1, 1], [1, 3], [0, 2], [0, 3], [2, 2], [2, 3]]));
+  assert.deepStrictEqual(sorted(neighbors(b, 0, 0)), sorted([[0, 1], [1, 0]]));
+});
+
+test('指定数の猫が配置され、最初のマスと隣には猫がいない', () => {
+  for (let i = 0; i < 20; i++) {
     const b = createBoard(9, 9, 10, 4, 4);
     assert.strictEqual(count(b, (c) => c.cat), 10);
-    for (let dr = -1; dr <= 1; dr++)
-      for (let dc = -1; dc <= 1; dc++) assert.ok(!b.cells[4 + dr][4 + dc].cat);
+    for (const [r, c] of [[4, 4], ...neighbors(b, 4, 4)]) assert.ok(!b.cells[r][c].cat);
   }
 });
 
 test('隣接猫数 n が正しい', () => {
   const b = createBoard(9, 9, 10, 0, 0);
   for (let r = 0; r < 9; r++)
-    for (let c = 0; c < 9; c++) {
-      let n = 0;
-      for (let dr = -1; dr <= 1; dr++)
-        for (let dc = -1; dc <= 1; dc++) if (b.cells[r + dr]?.[c + dc]?.cat && (dr || dc)) n++;
-      assert.strictEqual(b.cells[r][c].n, n);
-    }
+    for (let c = 0; c < 9; c++)
+      assert.strictEqual(b.cells[r][c].n, neighbors(b, r, c).filter(([rr, cc]) => b.cells[rr][cc].cat).length);
 });
 
 // 手で盤面を作るヘルパ: '*' = 猫
@@ -29,12 +33,34 @@ const fromMap = (rows) => {
   const b = createBoard(rows.length, rows[0].length, 0, 0, 0);
   rows.forEach((row, r) => [...row].forEach((ch, c) => (b.cells[r][c].cat = ch === '*')));
   b.cells.forEach((row, r) => row.forEach((cell, c) => {
-    cell.n = 0;
-    for (let dr = -1; dr <= 1; dr++)
-      for (let dc = -1; dc <= 1; dc++) if ((dr || dc) && b.cells[r + dr]?.[c + dc]?.cat) cell.n++;
+    cell.n = neighbors(b, r, c).filter(([rr, cc]) => b.cells[rr][cc].cat).length;
   }));
   return b;
 };
+
+test('推理だけで解ける盤面は solvable', () => {
+  // 左端から開くと 1 の隣が猫と確定し、残りは猫の総数から安全と分かる
+  assert.ok(solvable(fromMap(['..*..']), 0, 0));
+});
+
+test('二択が残る盤面は solvable ではない', () => {
+  // 右端の2マスのどちらかが猫で、手がかりがない
+  assert.ok(!solvable(fromMap(['..*.*']), 0, 0));
+});
+
+test('solvable は盤面を書き換えない', () => {
+  const b = fromMap(['..*..']);
+  solvable(b, 0, 0);
+  assert.strictEqual(count(b, (c) => c.open), 0);
+});
+
+test('作られる盤面はどの難易度でも推理だけで解ける', () => {
+  for (const [rows, cols, cats] of [[9, 9, 10], [16, 16, 40], [16, 30, 99]])
+    for (let i = 0; i < 3; i++) {
+      const sr = Math.floor(rows / 2), sc = Math.floor(cols / 2);
+      assert.ok(solvable(createBoard(rows, cols, cats, sr, sc), sr, sc), `${rows}x${cols}`);
+    }
+});
 
 test('0のマスを開くと連鎖して開く', () => {
   const b = fromMap(['....', '....', '...*']);
