@@ -45,7 +45,7 @@
   .dex-grid .unknown svg { filter: brightness(0) opacity(.15); }
   .dex-grid small { color: #b08a99; }
   .dex-grid .rarity { color: #c46b8b; font-size: .8rem; white-space: nowrap; }
-  .dex-grid .registered { color: var(--ink); white-space: nowrap; }
+  .dex-grid .found { color: var(--ink); white-space: nowrap; }
   #msg { min-height: 1.5em; margin-top: 12px; }
 </style>
 </head>
@@ -74,7 +74,7 @@
     <li>猫のいないマスを全部めくったらクリア<span class="ico" data-icon="love"></span></li>
     <li><span class="ico" data-icon="normal"></span>を押すと最初からやり直し</li>
     <li>どの盤面も、運に頼らず推理だけで必ず解けるよ</li>
-    <li>クリアすると盤面の猫がみんな図鑑に登録される。負けても、目印で当てた猫は登録されるよ</li>
+    <li>クリアすると盤面の猫をみんな発見できる。負けても、目印で当てた猫は発見できるよ</li>
     <li>「おと」ボタンで効果音のON/OFF</li>
     <li><span class="ico" data-icon="clock"></span>は経過時間、<span class="ico" data-icon="crown"></span>は難易度ごとのベストタイム</li>
   </ul>
@@ -203,18 +203,18 @@
     const dex = loadDex();
     $('dex-count').textContent = `${BREEDS.filter((x) => dex[x.id]).length}/${BREEDS.length}`;
     $('dex-grid').innerHTML = BREEDS.map((x) => dex[x.id]
-      ? `<div>${breedIcon('happy', x.id)}<b>${x.name}</b>${rarity(x.weight)}<small class="registered">登録 ${dex[x.id]}匹</small></div>`
+      ? `<div>${breedIcon('happy', x.id)}<b>${x.name}</b>${rarity(x.weight)}<small class="found">発見 ${dex[x.id]}匹</small></div>`
       : `<div class="unknown">${breedIcon('sleep', x.id)}<b>？？？</b>${rarity(x.weight)}</div>`).join('');
   }
   showDex();
 
-  // ゲーム終了時に図鑑へ登録して、メッセージに添える一文を返す
+  // ゲーム終了時に発見した猫を図鑑へ記録して、メッセージに添える一文を返す
   function catchCats(won) {
     const caught = caughtCats(b, won);
     if (!caught.length) return '';
     const { dex, fresh } = addToDex(loadDex(), caught);
     saveDex(dex); showDex();
-    return `<br>図鑑に${caught.length}匹登録` + (fresh.length ? `！はじめて会った猫：${fresh.map(breedName).join('、')}` : '');
+    return `<br>猫を${caught.length}匹発見` + (fresh.length ? `！はじめて会った猫：${fresh.map(breedName).join('、')}` : '');
   }
 
   function start() {
