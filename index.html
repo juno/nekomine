@@ -31,7 +31,11 @@
   .cell.flagged svg { width: 95%; height: 95%; }
   .cell.tucking svg { animation: tuck-in .3s ease-out both; }
   @keyframes tuck-in { from { transform: translateY(-6px) rotate(-8deg); opacity: .3; } to { transform: translateY(0); opacity: 1; } }
-  @media (prefers-reduced-motion: reduce) { .cell.tucking svg { animation: none; } }
+  svg.breathing, svg .breathing { transform-box: view-box; transform-origin: 50% 60%; animation: breathe 3.2s ease-in-out infinite; }
+  @keyframes breathe {
+    0%, 100% { transform: scale(1); }
+    50% { transform: scale(1.1, 1.07); }
+  }
   .cell.open { background: var(--open); box-shadow: none; cursor: default; }
   .n1 { color: #5fa8d3; } .n2 { color: #6cbf84; } .n3 { color: #e8798f; } .n4 { color: #9b7fd1; }
   .n5 { color: #d9935b; } .n6 { color: #4bb3a8; } .n7 { color: #555; } .n8 { color: #999; }
@@ -105,7 +109,7 @@
     siam: { fur: '#f6e8d2', ears: ['#7a5c4c', '#7a5c4c'], marks: `<ellipse cx="50" cy="68" rx="19" ry="13" fill="#d8b896"/>` },
     maneki: { fur: '#ffd36e', marks: `<path d="M0 90Q50 104 100 90" stroke="#e8364f" stroke-width="10" fill="none"/><path d="M22 30l3 6 6 1-5 4 1 6-5-3-5 3 1-6-5-4 6-1z" fill="#fff6c8"/>` },
   };
-  const cat = (face, { fur, ears = [fur, fur], marks = '', ink = INK } = LOOKS.chatora) => `<svg viewBox="0 0 100 100" aria-hidden="true">
+  const cat = (face, { fur, ears = [fur, fur], marks = '', ink = INK } = LOOKS.chatora) => `<svg class="${face === FACE.sleep || face === FACE.normal ? 'breathing' : ''}" viewBox="0 0 100 100" aria-hidden="true">
     <path d="M14 46L20 8L46 28Z" fill="${ears[0]}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
     <path d="M86 46L80 8L54 28Z" fill="${ears[1]}" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
     <path d="M23 32L25 18L37 27ZM77 32L75 18L63 27Z" fill="#ffb3c6"/>
@@ -135,12 +139,13 @@
     sad: cat(FACE.sad),
     love: cat(FACE.love),
     paw: `<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="#e8798f"><ellipse cx="50" cy="66" rx="21" ry="18"/><ellipse cx="25" cy="44" rx="9" ry="11"/><ellipse cx="41" cy="27" rx="9" ry="11"/><ellipse cx="59" cy="27" rx="9" ry="11"/><ellipse cx="75" cy="44" rx="9" ry="11"/></g></svg>`,
-    blanket: `<svg viewBox="0 0 100 100" aria-hidden="true">
+    blanket: `<svg viewBox="0 0 100 100" aria-hidden="true"><g class="breathing">
       <path d="M27 40 23 20 43 35M73 40l4-20-20 15" fill="#f6d4a9" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
       <ellipse cx="50" cy="47" rx="29" ry="23" fill="#f6d4a9" stroke="${INK}" stroke-width="4"/>
       <path d="M33 47q6 6 12 0m10 0q6 6 12 0" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
       <path d="M12 58Q50 42 88 58l-5 27Q50 96 17 85Z" fill="#b8a0da" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
       <path d="M20 65q30-14 60 0" fill="none" stroke="#eee5fa" stroke-width="4" stroke-linecap="round"/>
+      </g>
     </svg>`,
     clock: `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="54" r="36" fill="#fff" stroke="${INK}" stroke-width="7"/><path d="M50 32v22l14 9" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/><path d="M40 10h20" stroke="${INK}" stroke-width="7" stroke-linecap="round"/></svg>`,
     crown: `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 76L8 30l24 18L50 20l18 28 24-18-6 46z" fill="#ffd36e" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><circle cx="50" cy="60" r="6" fill="#ff8fab"/></svg>`,
