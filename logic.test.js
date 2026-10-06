@@ -62,6 +62,16 @@ test('作られる盤面はどの難易度でも推理だけで解ける', () =>
     }
 });
 
+test('解ける盤面を生成できないとき、解けない盤面を返さない', () => {
+  const random = Math.random;
+  Math.random = () => 0; // 1行5マスなら毎回「..**.」になり、左端からは推理しきれない
+  try {
+    assert.throws(() => createBoard(1, 5, 2, 0, 0), /盤面を生成できません/);
+  } finally {
+    Math.random = random;
+  }
+});
+
 test('0のマスを開くと連鎖して開く', () => {
   const b = fromMap(['....', '....', '...*']);
   assert.strictEqual(reveal(b, 0, 0), 'ok');
