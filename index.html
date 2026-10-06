@@ -17,9 +17,14 @@
   .ico svg { width: 1.3em; height: 1.3em; vertical-align: -0.3em; }
   .cell svg { width: 85%; height: 85%; display: block; margin: auto; }
   .cell.boom { background: #ffb3b3; }
-  #board { display: grid; gap: 3px; background: #ffc2d1; padding: 8px; border-radius: 16px; touch-action: manipulation; }
-  .cell { width: min(9vw, 34px); aspect-ratio: 1; border: 0; border-radius: 8px; padding: 0;
-          background: var(--tile); box-shadow: inset 0 -3px #f4a6b8; font-size: min(5vw, 20px); font-weight: bold;
+  #board-scroll { width: 100%; min-width: 0; max-width: 100%; overflow-x: auto; }
+  #board { --w: min(8.5vw, 34px); width: max-content; margin: 0 auto; background: #d886a0; padding: 8px 8px calc(8px + var(--w) * .29); border-radius: 16px; touch-action: manipulation; }
+  /* 六角形: 奇数行を半マスずらし、行を 1/4 ずつ重ねる */
+  .row { display: flex; gap: 2px; margin-bottom: calc(var(--w) * -.29 + 2px); }
+  .row:nth-child(even) { padding-left: calc(var(--w) / 2 + 1px); }
+  .cell { flex: 0 0 var(--w); width: var(--w); height: calc(var(--w) * 1.155); border: 0; padding: 0;
+          clip-path: polygon(50% 0, 100% 25%, 100% 75%, 50% 100%, 0 75%, 0 25%);
+          background: var(--tile); font-size: min(5vw, 20px); font-weight: bold;
           -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
   .cell:hover:not(.open) { background: var(--tile-hi); }
   .cell.open { background: var(--open); box-shadow: none; cursor: default; }
@@ -56,10 +61,11 @@
   <summary>遊び方</summary>
   <ul>
     <li>クリック（タップ）でクッションをめくる</li>
-    <li>数字は、まわり8マスで寝ている猫<span class="ico" data-icon="sleep"></span>の数</li>
+    <li>数字は、まわり6マスで寝ている猫<span class="ico" data-icon="sleep"></span>の数</li>
     <li>右クリック（スマホは長押し）で<span class="ico" data-icon="paw"></span>の目印。もう一回で外れる</li>
     <li>猫のいないマスを全部めくったらクリア<span class="ico" data-icon="love"></span></li>
     <li><span class="ico" data-icon="normal"></span>を押すと最初からやり直し</li>
+    <li>どの盤面も、運に頼らず推理だけで必ず解けるよ</li>
     <li>クリアすると盤面の猫がみんな図鑑に登録される。負けても、目印で当てた猫は登録されるよ</li>
     <li>「おと」ボタンで効果音のON/OFF</li>
     <li><span class="ico" data-icon="clock"></span>は経過時間、<span class="ico" data-icon="crown"></span>は難易度ごとのベストタイム</li>
@@ -69,7 +75,7 @@
   <summary>ねこ図鑑 <span id="dex-count"></span></summary>
   <div class="dex-grid" id="dex-grid"></div>
 </details>
-<div id="board"></div>
+<div id="board-scroll"><div id="board"></div></div>
 <div id="msg"></div>
 <script src="logic.js"></script>
 <script>
@@ -198,14 +204,15 @@
     b = null; over = false; clearInterval(tick);
     showTime(0); showBest();
     setFace('normal'); $('msg').textContent = '';
-    $('board').style.gridTemplateColumns = `repeat(${cols}, auto)`;
     render();
   }
 
   function render() {
     const flags = b ? b.cells.flat().filter((c) => c.flag).length : 0;
     $('left').innerHTML = `${ico('sleep')} × ${cats - flags}`;
-    $('board').replaceChildren(...Array.from({ length: rows * cols }, (_, i) => {
+    const rowEls = Array.from({ length: rows }, () => Object.assign(document.createElement('div'), { className: 'row' }));
+    $('board').replaceChildren(...rowEls);
+    for (let i = 0; i < rows * cols; i++) rowEls[Math.floor(i / cols)].append((() => {
       const r = Math.floor(i / cols), c = i % cols, x = b?.cells[r][c];
       const el = document.createElement('button');
       el.className = 'cell';
@@ -220,7 +227,7 @@
         el.innerHTML = ICON.paw;
       }
       return el;
-    }));
+    })());
   }
 
   function act(r, c, flag) {
@@ -233,7 +240,8 @@
       return render();
     }
     if (!b) {
-      b = createBoard(rows, cols, cats, r, c);
+      try { b = createBoard(rows, cols, cats, r, c); }
+      catch (e) { $('msg').textContent = e.message; return; }
       t0 = Date.now(); tick = setInterval(() => showTime(elapsed()), 100);
     }
     const wasOpen = b.cells[r][c].open;
