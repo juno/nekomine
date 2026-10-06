@@ -27,6 +27,11 @@
           background: var(--tile); font-size: min(5vw, 20px); font-weight: bold;
           -webkit-touch-callout: none; user-select: none; -webkit-user-select: none; }
   .cell:hover:not(.open) { background: var(--tile-hi); }
+  .cell.flagged, .cell.flagged:hover { background: #f2dff0; }
+  .cell.flagged svg { width: 95%; height: 95%; }
+  .cell.tucking svg { animation: tuck-in .3s ease-out both; }
+  @keyframes tuck-in { from { transform: translateY(-6px) rotate(-8deg); opacity: .3; } to { transform: translateY(0); opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .cell.tucking svg { animation: none; } }
   .cell.open { background: var(--open); box-shadow: none; cursor: default; }
   .n1 { color: #5fa8d3; } .n2 { color: #6cbf84; } .n3 { color: #e8798f; } .n4 { color: #9b7fd1; }
   .n5 { color: #d9935b; } .n6 { color: #4bb3a8; } .n7 { color: #555; } .n8 { color: #999; }
@@ -39,12 +44,14 @@
   .dex-grid svg { width: 56px; height: 56px; }
   .dex-grid .unknown svg { filter: brightness(0) opacity(.15); }
   .dex-grid small { color: #b08a99; }
+  .dex-grid .rarity { color: #c46b8b; font-size: .8rem; white-space: nowrap; }
+  .dex-grid .found { color: var(--ink); white-space: nowrap; }
   #msg { min-height: 1.5em; margin-top: 12px; }
 </style>
 </head>
 <body>
 <h1><span class="ico" data-icon="paw"></span> ねこマインスイーパー <span class="ico" data-icon="paw"></span></h1>
-<p>寝ている猫を起こさないように、全部のクッションをめくってね</p>
+<p>寝ている猫を起こさないように、猫のいないクッションを全部めくってね</p>
 <div class="bar">
   <select id="level">
     <option value="9,9,10">こねこ</option>
@@ -62,11 +69,12 @@
   <ul>
     <li>クリック（タップ）でクッションをめくる</li>
     <li>数字は、まわり6マスで寝ている猫<span class="ico" data-icon="sleep"></span>の数</li>
-    <li>右クリック（スマホは長押し）で<span class="ico" data-icon="paw"></span>の目印。もう一回で外れる</li>
+    <li>右クリック（スマホは長押し）で、猫がいそうなマスに毛布をかける。もう一回で外れる</li>
+    <li>毛布をかけても、猫がいるかどうかはゲーム終了まで分からないよ</li>
     <li>猫のいないマスを全部めくったらクリア<span class="ico" data-icon="love"></span></li>
     <li><span class="ico" data-icon="normal"></span>を押すと最初からやり直し</li>
     <li>どの盤面も、運に頼らず推理だけで必ず解けるよ</li>
-    <li>クリアすると盤面の猫がみんな図鑑に登録される。負けても、目印で当てた猫は登録されるよ</li>
+    <li>クリアすると盤面の猫をみんな発見できる。負けても、目印で当てた猫は発見できるよ</li>
     <li>「おと」ボタンで効果音のON/OFF</li>
     <li><span class="ico" data-icon="clock"></span>は経過時間、<span class="ico" data-icon="crown"></span>は難易度ごとのベストタイム</li>
   </ul>
@@ -127,6 +135,13 @@
     sad: cat(FACE.sad),
     love: cat(FACE.love),
     paw: `<svg viewBox="0 0 100 100" aria-hidden="true"><g fill="#e8798f"><ellipse cx="50" cy="66" rx="21" ry="18"/><ellipse cx="25" cy="44" rx="9" ry="11"/><ellipse cx="41" cy="27" rx="9" ry="11"/><ellipse cx="59" cy="27" rx="9" ry="11"/><ellipse cx="75" cy="44" rx="9" ry="11"/></g></svg>`,
+    blanket: `<svg viewBox="0 0 100 100" aria-hidden="true">
+      <path d="M27 40 23 20 43 35M73 40l4-20-20 15" fill="#f6d4a9" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+      <ellipse cx="50" cy="47" rx="29" ry="23" fill="#f6d4a9" stroke="${INK}" stroke-width="4"/>
+      <path d="M33 47q6 6 12 0m10 0q6 6 12 0" fill="none" stroke="${INK}" stroke-width="3" stroke-linecap="round"/>
+      <path d="M12 58Q50 42 88 58l-5 27Q50 96 17 85Z" fill="#b8a0da" stroke="${INK}" stroke-width="4" stroke-linejoin="round"/>
+      <path d="M20 65q30-14 60 0" fill="none" stroke="#eee5fa" stroke-width="4" stroke-linecap="round"/>
+    </svg>`,
     clock: `<svg viewBox="0 0 100 100" aria-hidden="true"><circle cx="50" cy="54" r="36" fill="#fff" stroke="${INK}" stroke-width="7"/><path d="M50 32v22l14 9" fill="none" stroke="${INK}" stroke-width="7" stroke-linecap="round"/><path d="M40 10h20" stroke="${INK}" stroke-width="7" stroke-linecap="round"/></svg>`,
     crown: `<svg viewBox="0 0 100 100" aria-hidden="true"><path d="M14 76L8 30l24 18L50 20l18 28 24-18-6 46z" fill="#ffd36e" stroke="${INK}" stroke-width="6" stroke-linejoin="round"/><circle cx="50" cy="60" r="6" fill="#ff8fab"/></svg>`,
   };
@@ -160,8 +175,8 @@
   }
   const SOUND = {
     open: () => tone([700, 1050], 0.08),
-    flag: () => tone([1200, 1700], 0.07, 'triangle'),
-    unflag: () => tone([1700, 1100], 0.07, 'triangle'),
+    flag: () => tone([320, 230], 0.18, 'sine', 0.09),
+    unflag: () => tone([350, 480], 0.08, 'sine', 0.08),
     meow: () => tone([480, 820, 520], 0.55, 'triangle', 0.25), // にゃー
     win: () => [784, 988, 1175, 1568].forEach((f, i) => tone([f, f * 1.01], 0.2, 'sine', 0.18, i * 0.1)),
   };
@@ -180,23 +195,26 @@
   const loadDex = () => { try { return JSON.parse(localStorage.getItem('nekomine-dex')) || {}; } catch { return {}; } };
   const saveDex = (d) => { try { localStorage.setItem('nekomine-dex', JSON.stringify(d)); } catch {} };
   const breedName = (id) => BREEDS.find((x) => x.id === id).name;
-  const stars = (w) => '★'.repeat(w >= 15 ? 1 : w >= 6 ? 2 : w >= 3 ? 3 : 4);
+  const rarity = (w) => {
+    const n = w >= 15 ? 1 : w >= 6 ? 2 : w >= 3 ? 3 : 4;
+    return `<small>レア度</small><span class="rarity" role="img" aria-label="レア度${n}つ星">${'★'.repeat(n)}${'☆'.repeat(4 - n)}</span>`;
+  };
   function showDex() {
     const dex = loadDex();
     $('dex-count').textContent = `${BREEDS.filter((x) => dex[x.id]).length}/${BREEDS.length}`;
     $('dex-grid').innerHTML = BREEDS.map((x) => dex[x.id]
-      ? `<div>${breedIcon('happy', x.id)}<b>${x.name}</b><small>${stars(x.weight)} ×${dex[x.id]}</small></div>`
-      : `<div class="unknown">${breedIcon('sleep', x.id)}<b>？？？</b><small>${stars(x.weight)}</small></div>`).join('');
+      ? `<div>${breedIcon('happy', x.id)}<b>${x.name}</b>${rarity(x.weight)}<small class="found">発見 ${dex[x.id]}匹</small></div>`
+      : `<div class="unknown">${breedIcon('sleep', x.id)}<b>？？？</b>${rarity(x.weight)}</div>`).join('');
   }
   showDex();
 
-  // ゲーム終了時に図鑑へ登録して、メッセージに添える一文を返す
+  // ゲーム終了時に発見した猫を図鑑へ記録して、メッセージに添える一文を返す
   function catchCats(won) {
     const caught = caughtCats(b, won);
     if (!caught.length) return '';
     const { dex, fresh } = addToDex(loadDex(), caught);
     saveDex(dex); showDex();
-    return `<br>図鑑に${caught.length}匹登録` + (fresh.length ? `！はじめて会った猫：${fresh.map(breedName).join('、')}` : '');
+    return `<br>猫を${caught.length}匹発見` + (fresh.length ? `！はじめて会った猫：${fresh.map(breedName).join('、')}` : '');
   }
 
   function start() {
@@ -207,7 +225,7 @@
     render();
   }
 
-  function render() {
+  function render(tucked = null) {
     const flags = b ? b.cells.flat().filter((c) => c.flag).length : 0;
     $('left').innerHTML = `${ico('sleep')} × ${cats - flags}`;
     const rowEls = Array.from({ length: rows }, () => Object.assign(document.createElement('div'), { className: 'row' }));
@@ -224,7 +242,10 @@
       } else if (over && x?.cat) {
         el.innerHTML = breedIcon(x.flag ? 'happy' : 'sleep', x.breed);
       } else if (x?.flag) {
-        el.innerHTML = ICON.paw;
+        el.classList.add('flagged');
+        if (tucked?.[0] === r && tucked[1] === c) el.classList.add('tucking');
+        el.setAttribute('aria-label', `${r + 1}行${c + 1}列、毛布の目印`);
+        el.innerHTML = ICON.blanket;
       }
       return el;
     })());
@@ -237,7 +258,7 @@
       const was = b.cells[r][c].flag;
       toggleFlag(b, r, c);
       if (b.cells[r][c].flag !== was) (was ? SOUND.unflag : SOUND.flag)();
-      return render();
+      return render(!was && b.cells[r][c].flag ? [r, c] : null);
     }
     if (!b) {
       try { b = createBoard(rows, cols, cats, r, c); }
